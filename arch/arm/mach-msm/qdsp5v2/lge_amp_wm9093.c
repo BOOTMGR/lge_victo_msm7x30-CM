@@ -218,7 +218,7 @@ struct wm9093_param_type wm9093_param_table[] = {
 		WM90903_AMP_SPEAKER_AMP_GAIN_0DB,
 		WM9093_AMP_SPEAKER_OUT_GAIN_BOOSTT_3_98,
 		0x00,
-		0x39,
+		0x49,   //rahul_added for INDIA CP 0x39
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #else /*~CONFIG_LGE_DOMESTIC*/
 /* ICODEC_HEADSET_ST_RX */
@@ -235,7 +235,7 @@ struct wm9093_param_type wm9093_param_table[] = {
 		WM90903_AMP_SPEAKER_AMP_GAIN_0DB,
 		WM9093_AMP_SPEAKER_OUT_GAIN_BOOSTT_3_98,
 		60,
-		50,
+		47,
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 /* ICODEC_SPEAKER_RX */
 	{	0x01,
@@ -275,7 +275,7 @@ struct wm9093_param_type wm9093_param_table[] = {
 		WM90903_AMP_SPEAKER_AMP_GAIN_0DB,
 		WM9093_AMP_SPEAKER_OUT_GAIN_BOOSTT_3_98,
 		0x00,
-		0x39,
+		0x49,  //rahul_added for INDIA CP 0x39
 		0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 #endif /*CONFIG_LGE_DOMESTIC*/
 };

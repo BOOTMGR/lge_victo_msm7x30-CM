@@ -23,12 +23,19 @@
 #include <linux/interrupt.h>
 #include <linux/slab.h>
 
+#ifndef CONFIG_MACH_MSM8X55_VICTOR
+	#define QT602240_USE_FIRMWARE_CLASS
+#endif
+
+#ifndef QT602240_USE_FIRMWARE_CLASS
+#include "qt602240_firmware_2_0.h"
+#endif
+
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
 /* LGE_CHANGE
   * For qt602240_ts bring up for Victor
   * 2011-01-25, guilbert.lee@lge.com
   */
-
 #include <linux/gpio.h>
 #include <mach/board_lge.h>
 
@@ -105,8 +112,6 @@
 #define QT602240_ACQUIRE_SYNC		5
 #define QT602240_ACQUIRE_ATCHCALST	6
 #define QT602240_ACQUIRE_ATCHCALSTHR	7
-#define QT602240_ACQUIRE_ATCHFRCCALTHR	8 //taegyun.an
-#define QT602240_ACQUIRE_ATCHFRCCALRATIO	9 //taegyun.an
 
 /* QT602240_TOUCH_MULTI field */
 #define QT602240_TOUCH_CTRL		0
@@ -187,7 +192,7 @@
 #define QT602240_BOOT_VALUE		0xa5
 #define QT602240_BACKUP_VALUE		0x55
 #define QT602240_BACKUP_TIME		25	/* msec */
-#define QT602240_RESET_TIME		100	/* msec */
+#define QT602240_RESET_TIME		65	/* msec */
 
 #define QT602240_FWRESET_TIME		175	/* msec */
 
@@ -219,7 +224,6 @@
   * For qt602240_ts bring up for Victor
   * 2011-01-25, guilbert.lee@lge.com
   */
-
 #define QT602240_MAX_XC			0x1E0
 #define QT602240_MAX_YC			0x320
 #define QT602240_MAX_AREA		0x1E
@@ -233,9 +237,6 @@
 
 #define QT602240_MAX_FINGER		10
 #endif
-
-//2011.10.05
-#define QT602240_AUTOCAL_LIVE_TIME 1500  //1500msec
 
 /* Initial register values recommended from chip vendor */
 static const u8 init_vals_ver_20[] = {
@@ -319,7 +320,6 @@ static const u8 init_vals_ver_21[] = {
   * For qt602240_ts bring up for Victor
   * 2011-01-25, guilbert.lee@lge.com
   */
-
 static const u8 init_vals_ver_22[] = {
 	/* QT602240_GEN_COMMAND(6) */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -367,7 +367,7 @@ static const u8 init_vals_ver_32[] = {
 	/* QT602240_GEN_ACQUIRE(8) */
 	0x0A, 0x05, 0x05, 0x01, 0x00, 0x00, 0x09, 0x03, 0x7F, 0x7F,
 	/* QT602240_TOUCH_MULTI(9) */
-	0x8F, 0x00, 0x00, 0x13, 0x0B, 0x00, 0x20, 0x37, 0x01, 0x07,
+	0x8F, 0x00, 0x00, 0x13, 0x0B, 0x00, 0x20, 0x37, 0x02, 0x07,
 	0x00, 0x00, 0x00, 0x2E, 0x0A, 0x0A, 0x0A, 0x0A, 0x1F, 0x03,
 	0xDF, 0x01, 0x00, 0x00, 0x00, 0x00, 0x88, 0x28, 0x8C, 0x50,
 	0x0F, 0x00,
@@ -382,7 +382,7 @@ static const u8 init_vals_ver_32[] = {
 	0x00, 0x00,
 	/* QT602240_PROCG_NOISE(22) */
 	0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x19, 0x00,
-	0x00, 0x0B, 0x0E, 0x11, 0x14, 0x18, 0x03,
+	0x00, 0x13, 0x14, 0x15, 0x1E, 0x23, 0x03,
 	/* QT602240_TOUCH_PROXIMITY(23) */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00,
@@ -504,8 +504,6 @@ struct qt602240_data {
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void qt602240_early_suspend(struct early_suspend *);
 static void qt602240_late_resume(struct early_suspend *);
-static bool bWasSuspended = false;
-static bool bIsIntensiveRelease = false;
 #endif	/* USE_TSP_EARLY_SUSPEND */
 #endif
 
@@ -797,15 +795,10 @@ static void qt602240_calibrate_chip(struct qt602240_data *data)
 	qt602240_cal_check = 1;
 }
 
-static unsigned int qt_time_point_for_autocal;
 static unsigned int qt_time_point;
-static long  qt_time_diff=0;
+static unsigned int qt_time_diff;
 static unsigned int qt_timer_state;
 static unsigned int pre_atch_ch = 0, count = 0, first_good = 1;
-static unsigned int qt_first_touch = 0;
-static bool config_check_flag = false;
-static int anti_touch_100_count = 0;
-static int anti_touch_30_count = 0;
 
 static int qt602240_check_abs_time(void)
 {
@@ -814,7 +807,7 @@ static int qt602240_check_abs_time(void)
 	if (!qt_time_point)
 		return 0;
 
-	qt_time_diff = (long)(jiffies_to_msecs(jiffies) - qt_time_point);
+	qt_time_diff = jiffies_to_msecs(jiffies) - qt_time_point;
 	if (qt_time_diff > 0)
 		return 1;
 	else
@@ -823,8 +816,6 @@ static int qt602240_check_abs_time(void)
 
 void qt602240_check_chip_calibration(struct qt602240_data *data)
 {
-	struct qt602240_finger *finger = data->finger;
-
 	uint8_t data_buffer[100] = { 0 };
 	uint8_t try_ctr = 0;
 	uint8_t data_byte = 0xF3; /* dianostic command to get touch flags */
@@ -832,207 +823,148 @@ void qt602240_check_chip_calibration(struct qt602240_data *data)
 	uint8_t check_mask;
 	uint8_t i;
 	uint8_t j;
-	uint8_t x_line_limit;	
-	
-	if(first_good == 1)
-	{
-		/* we have had the first touchscreen or face suppression message
-		 * after a calibration - check the sensor state and try to confirm if
-		 * cal was good or bad */
+	uint8_t x_line_limit;
 
-		/* get touch flags from the chip using the diagnostic object */
-		/* write command to command processor to get touch flags - 0xF3 Command required to do this */
-		qt602240_write_object(data, QT602240_GEN_COMMAND, QT602240_COMMAND_DIAGNOSTIC, data_byte);
-		qt602240_write_object(data, QT602240_TOUCH_MULTI, QT602240_TOUCH_TCHTHR, 30);
-		
-		msleep(10);
-		//printk(KERN_INFO"check_chip_calibration\n");
-		/* read touch flags from the diagnostic object - clear buffer so the while loop can run first time */
-		memset(data_buffer , 0xFF, sizeof(data_buffer));
+	/* we have had the first touchscreen or face suppression message
+	 * after a calibration - check the sensor state and try to confirm if
+	 * cal was good or bad */
 
-		/* wait for diagnostic object to update */
-		while (!((data_buffer[0] == 0xF3) && (data_buffer[1] == 0x00))) {
-			/* wait for data to be valid  */
-			if (try_ctr > 10) {
-				/* Failed! */
-				printk(KERN_INFO"[QT602240] Diagnostic Data did not update!!\n");
-				qt_timer_state = 0;
-				break;
-			}
-			msleep(2);
-			try_ctr++; /* timeout counter */
-			qt602240_read_diagnostic_object(data, QT602240_DEBUG_DIAGNOSTIC, 2, data_buffer);
+	/* get touch flags from the chip using the diagnostic object */
+	/* write command to command processor to get touch flags - 0xF3 Command required to do this */
+	qt602240_write_object(data, QT602240_GEN_COMMAND, QT602240_COMMAND_DIAGNOSTIC, data_byte);
+	qt602240_write_object(data, QT602240_TOUCH_MULTI, QT602240_TOUCH_TCHTHR, 30);
+	msleep(10);
+
+	/* read touch flags from the diagnostic object - clear buffer so the while loop can run first time */
+	memset(data_buffer , 0xFF, sizeof(data_buffer));
+
+	/* wait for diagnostic object to update */
+	while (!((data_buffer[0] == 0xF3) && (data_buffer[1] == 0x00))) {
+		/* wait for data to be valid  */
+		if (try_ctr > 10) {
+			/* Failed! */
+			printk(KERN_INFO"[QT602240] Diagnostic Data did not update!!\n");
+			qt_timer_state = 0;
+			break;
+		}
+		msleep(2);
+		try_ctr++; /* timeout counter */
+		qt602240_read_diagnostic_object(data, QT602240_DEBUG_DIAGNOSTIC, 2, data_buffer);
+	}
+
+	/* data is ready - read the detection flags */
+	/* data array is 20 x 16 bits for each set of flags, 2 byte header, 40 bytes for touch flags 40 bytes for antitouch flags*/
+	qt602240_read_diagnostic_object(data, QT602240_DEBUG_DIAGNOSTIC, 82, data_buffer);
+
+	/* count up the channels/bits if we recived the data properly */
+	if ((data_buffer[0] == 0xF3) && (data_buffer[1] == 0x00)) {
+		/* mode 0 : 16 x line, mode 1 : 17 etc etc upto mode 4.*/
+		x_line_limit = data->pdata->x_line;  /* Victor(Mode 3) : 19(x) * 11(y) */
+
+		if (x_line_limit > 20) {
+			/* hard limit at 20 so we don't over-index the array */
+			x_line_limit = 20;
 		}
 
-		/* data is ready - read the detection flags */
-		/* data array is 20 x 16 bits for each set of flags, 2 byte header, 40 bytes for touch flags 40 bytes for antitouch flags*/
-		qt602240_read_diagnostic_object(data, QT602240_DEBUG_DIAGNOSTIC, 82, data_buffer);
+		/* double the limit as the array is in bytes not words */
+		x_line_limit = x_line_limit << 1;
 
-		/* count up the channels/bits if we recived the data properly */
-		if ((data_buffer[0] == 0xF3) && (data_buffer[1] == 0x00)) {
-			/* mode 0 : 16 x line, mode 1 : 17 etc etc upto mode 4.*/
-			x_line_limit = data->pdata->x_line;  /* Victor(Mode 3) : 19(x) * 11(y) */
+		/* count the channels and print the flags to the log */
+		/* check X lines - data is in words so increment 2 at a time */
+		for (i = 0; i < x_line_limit; i += 2) {
+			/* print the flags to the log - only really needed for debugging */
 
-			if (x_line_limit > 20) {
-				/* hard limit at 20 so we don't over-index the array */
-				x_line_limit = 20;
+			/* count how many bits set for this row */
+			for (j = 0; j < 8; j++) {
+				/* create a bit mask to check against */
+				check_mask = 1 << j;
+
+				/* check detect flags */
+				if (data_buffer[2+i] & check_mask)
+					tch_ch++;
+				if (data_buffer[3+i] & check_mask)
+					tch_ch++;
+
+				/* check anti-detect flags */
+				if (data_buffer[42+i] & check_mask)
+					atch_ch++;
+				if (data_buffer[43+i] & check_mask)
+					atch_ch++;
 			}
+		}
 
-			/* double the limit as the array is in bytes not words */
-			x_line_limit = x_line_limit << 1;
 
-			/* count the channels and print the flags to the log */
-			/* check X lines - data is in words so increment 2 at a time */
-			for (i = 0; i < x_line_limit; i += 2) {
-				/* print the flags to the log - only really needed for debugging */
+		/* print how many channels we counted */
+		/*
+			printk(KERN_INFO"[QT602240] Flags Counted channels: t:%d a:%d \n", tch_ch, atch_ch);
+		*/
 
-				/* count how many bits set for this row */
-				for (j = 0; j < 8; j++) {
-					/* create a bit mask to check against */
-					check_mask = 1 << j;
+		/* send page up command so we can detect when data updates next time,
+		 * page byte will sit at 1 until we next send F3 command */
+		data_byte = 0x01;
+		qt602240_write_object(data, QT602240_GEN_COMMAND, QT602240_COMMAND_DIAGNOSTIC, data_byte);
 
-					/* check detect flags */
-					if (data_buffer[2+i] & check_mask)
-						tch_ch++;
-					if (data_buffer[3+i] & check_mask)
-						tch_ch++;
+		/* process counters and decide if we must re-calibrate or if cal was good */
+		if ((tch_ch > 0) && (atch_ch == 0)) {
+			/* cal was good - don't need to check any more */
+			if (!qt602240_check_abs_time())
+				qt_time_diff = 501;
 
-					/* check anti-detect flags */
-					if (data_buffer[42+i] & check_mask)
-						atch_ch++;
-					if (data_buffer[43+i] & check_mask)
-						atch_ch++;
-				}
-			}
-			
-			/* send page up command so we can detect when data updates next time,
-			 * page byte will sit at 1 until we next send F3 command */
-			data_byte = 0x01;
-			qt602240_write_object(data, QT602240_GEN_COMMAND, QT602240_COMMAND_DIAGNOSTIC, data_byte);
-
-			printk(KERN_DEBUG "[TSP][SUKER] atch_ch = %d\n", atch_ch);
-			printk(KERN_DEBUG "[TSP][SUKER] tch_ch = %d\n", tch_ch);
-			printk(KERN_DEBUG "[TSP][SUKER] qt_time_diff = %ld\n", qt_time_diff);
-				
-			/* process counters and decide if we must re-calibrate or if cal was good */
-			if (tch_ch >= 0 && tch_ch <= 15 && atch_ch == 0) {
-				/* cal was good - don't need to check any more */
-				if(!qt602240_check_abs_time())
-					qt_time_diff = 501;
-				
-				if (qt_timer_state == 1) {
-					if (qt_time_diff > 500) {
-						printk("[TSP]			calibration was good\n");
-						if (first_good) {
-							//qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_TCHAUTOCAL, 0x01);
-							qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALTHR, 10);//14); 
-							qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALRATIO, 215);//25); 
-							qt602240_write_object(data, QT602240_TOUCH_MULTI, QT602240_TOUCH_TCHTHR, 55);
-							config_check_flag = true;
-						}
-						qt602240_cal_check = 1;
-						first_good=0;
-						qt_time_point_for_autocal = jiffies_to_msecs(jiffies);
-						qt_timer_state=0;
-						//qt_time_diff=0;
-				    } else 
-					   	qt602240_cal_check = 1;
-				} else {
-					qt_timer_state = 1;
-					qt_time_point = jiffies_to_msecs(jiffies);
+			if (qt_timer_state == 1) {
+				if (qt_time_diff > 500 && qt_time_diff <= 2000) {
+					printk(KERN_INFO"[QT602240] calibration maybe good\n");
 					qt602240_cal_check = 1;
-				}
-			} else if ((atch_ch >= 8) || (tch_ch > 15 && atch_ch == 0)) {
-				printk(KERN_DEBUG "[TSP] calibration was bad1\n");
-				if (atch_ch >= 100)	{
-					anti_touch_100_count++;
-					if (anti_touch_100_count >= 5)	{
-						qt602240_calibrate_chip(data);
-						qt_timer_state = 0;
-						qt_time_point = jiffies_to_msecs(jiffies);
-						anti_touch_100_count = 0;
+					if (first_good) {
+						qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_TCHAUTOCAL, 0x01);
+						qt602240_write_object(data, QT602240_TOUCH_MULTI, QT602240_TOUCH_TCHTHR, 55);
 					}
-				}
-				else if (atch_ch >= 30)	{
-					anti_touch_30_count++;
-					if (anti_touch_30_count >= 10)	{
-						qt602240_calibrate_chip(data);
-						qt_timer_state = 0;
-						qt_time_point = jiffies_to_msecs(jiffies);
-						anti_touch_30_count = 0;
-					}
-				}				
-				else if(qt_first_touch == 1 || finger[0].status == QT602240_MOVE || finger[1].status == QT602240_MOVE)
-				{
-					printk(KERN_INFO"[QT602240] calibration was not decided yet by MOVE\n");
+					first_good=0;
+#if 0
+					/* Write normal acquisition config back to the chip. */
+					qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHCALST, 0x09);
+					qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHCALSTHR, 0x23);
+#endif
+				} else if (qt_time_diff > 2000) {
+					printk(KERN_INFO"[QT602240] calibration was good\n");
+					qt_timer_state = 0;
+					qt_time_point = jiffies_to_msecs(jiffies);
+					qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_TCHAUTOCAL, 0x00);
 
-					/* we cannot confirm if good or bad - we must wait for next touch  message to confirm */
-					qt602240_cal_check = 1;
-					/* Reset the 100ms timer */
-					qt_timer_state = 0;
-					qt_time_point = jiffies_to_msecs(jiffies);
-				}
-				else
-				{
-					/* cal was bad - must recalibrate and check afterwards */
-					qt602240_calibrate_chip(data);
-					qt_timer_state = 0;
-					qt_time_point = jiffies_to_msecs(jiffies);
-				}
-			} else if (tch_ch > 18) {
-				printk(KERN_DEBUG "[TSP] calibration was bad2\n");
-
-				if(qt_first_touch == 1 || finger[0].status == QT602240_MOVE || finger[1].status == QT602240_MOVE)
-				{
-					printk(KERN_INFO"[QT602240] calibration was not decided yet by MOVE\n");
-
-					/* we cannot confirm if good or bad - we must wait for next touch  message to confirm */
-					qt602240_cal_check = 1;
-					/* Reset the 100ms timer */
-					qt_timer_state = 0;
-					qt_time_point = jiffies_to_msecs(jiffies);
-				}
-				else
-				{
-					/* cal was bad - must recalibrate and check afterwards */
-					qt602240_calibrate_chip(data);
-					qt_timer_state = 0;
-					qt_time_point = jiffies_to_msecs(jiffies);
-				}
-			} else if (atch_ch == pre_atch_ch) {
-				count++;
-				if (count == 5) {
-					printk(KERN_DEBUG "[TSP] calibration was bad\n");
-					/* cal was bad - must recalibrate and check afterwards */
-					qt602240_calibrate_chip(data);
-					qt_timer_state = 0;
-					qt_time_point = jiffies_to_msecs(jiffies);
-					count = 0;
-				}
+					qt602240_cal_check = 0;
+			    } else
+				   qt602240_cal_check = 1;
 			} else {
-				printk(KERN_INFO"[QT602240] calibration was not decided yet\n");
-				/* we cannot confirm if good or bad - we must wait for next touch  message to confirm */
+				qt_timer_state = 1;
+				qt_time_point = jiffies_to_msecs(jiffies);
 				qt602240_cal_check = 1;
-				/* Reset the 100ms timer */
+			}
+		} else if (atch_ch >= 6) {
+			printk(KERN_DEBUG "[TSP] calibration was bad\n");
+			/* cal was bad - must recalibrate and check afterwards */
+			qt602240_calibrate_chip(data);
+			qt_timer_state = 0;
+			qt_time_point = jiffies_to_msecs(jiffies);
+		} else if (atch_ch == pre_atch_ch) {
+			count++;
+			if (count == 5) {
+				printk(KERN_DEBUG "[TSP] calibration was bad\n");
+				/* cal was bad - must recalibrate and check afterwards */
+				qt602240_calibrate_chip(data);
 				qt_timer_state = 0;
 				qt_time_point = jiffies_to_msecs(jiffies);
+				count = 0;
 			}
-			pre_atch_ch = atch_ch;
+		} else {
+			/*
+				printk(KERN_INFO"[QT602240] calibration was not decided yet\n");
+			*/
+			/* we cannot confirm if good or bad - we must wait for next touch  message to confirm */
+			qt602240_cal_check = 1;
+			/* Reset the 100ms timer */
+			qt_timer_state = 0;
+			qt_time_point = jiffies_to_msecs(jiffies);
 		}
-	}
-	
-	if(config_check_flag){
-		qt_time_diff =  (long)(jiffies_to_msecs(jiffies) - qt_time_point_for_autocal);
-		if(qt_time_diff > QT602240_AUTOCAL_LIVE_TIME)		{
-			printk("[TSP] change_auto_calibration was stopped to qt_time_diff value : %ld\n", qt_time_diff);
-			qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_TCHAUTOCAL, 0x00);
-			qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALTHR, 0); 
-			qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALRATIO, 0); 
-
-			config_check_flag = false;
-			qt602240_cal_check = 0;
-			qt_time_diff = 0;
-		}
+		pre_atch_ch = atch_ch;
 	}
 }
 #endif
@@ -1094,19 +1026,6 @@ static void qt602240_input_report(struct qt602240_data *data, int single_id)
 	input_sync(input_dev);
 }
 
-static void qt602240_input_report_release_flush(struct qt602240_data *data)
-{
-	struct input_dev *input_dev = data->input_dev;
-
-	printk(KERN_INFO"[TSP] === Release Event Flush\n");
-
-	qt_first_touch = 0;
-
-	input_mt_sync(input_dev);
-	input_sync(input_dev);
-	return;
-}
-
 static void qt602240_input_touchevent(struct qt602240_data *data,
 				      struct qt602240_message *message, int id)
 {
@@ -1116,23 +1035,19 @@ static void qt602240_input_touchevent(struct qt602240_data *data,
 	int x;
 	int y;
 	int area;
-//	struct input_dev *input_dev = data->input_dev;
-	
-//	mutex_lock(&input_dev->mutex);
-	if (status & QT602240_RELEASE || bIsIntensiveRelease) {
+
+	if (status & QT602240_RELEASE) {
 		dev_dbg(dev, "[%d] released\n", id);
 		
 		finger[id].status = QT602240_RELEASE;
 		qt602240_input_report(data, id);
-		printk(KERN_INFO"[TSP] [%d] status & QT602240_RELEASE ----- \n",id);
-		bIsIntensiveRelease = false;
-		goto input_event_end;
+		return;
 	}
 
 	if (status & QT602240_DETECT) {
 		/* Check only AMP detection */
 		if (!(status & (QT602240_PRESS | QT602240_MOVE)))
-			goto input_event_end;
+			return;
 
 		x = (message->message[1] << 2) | ((message->message[3] & ~0x3f) >> 6);
 		y = (message->message[2] << 2) | ((message->message[3] & ~0xf3) >> 2);
@@ -1143,28 +1058,14 @@ static void qt602240_input_touchevent(struct qt602240_data *data,
 				status & QT602240_MOVE ? "moved" : "pressed",
 				x, y, area);
 #endif
-		if(status & QT602240_PRESS)
-		{
-			printk(KERN_INFO"[TSP] [%d] %s x: %d, y: %d, area: %d\n", id,
-					status & QT602240_MOVE ? "moved" : "pressed", x, y, area);
-		}
-
 		finger[id].status = status & QT602240_MOVE ?
 			QT602240_MOVE : QT602240_PRESS;
 		finger[id].x = x;
 		finger[id].y = y;
 		finger[id].area = area;
 
-		if(qt_first_touch == 1) qt_first_touch = 2;
-		if(qt_first_touch == 0) qt_first_touch = 1;
-
-
 		qt602240_input_report(data, id);
 	}
-
-input_event_end:
-//	mutex_unlock(&input_dev->mutex);
-    return;
 }
 
 static irqreturn_t qt602240_interrupt(int irq, void *dev_id)
@@ -1178,23 +1079,12 @@ static irqreturn_t qt602240_interrupt(int irq, void *dev_id)
 	u8 max_reportid;
 	u8 min_reportid;
 	uint8_t touch_message_flag = 0;
-	int int_value;
 
 	do {
-		mutex_lock(&data->input_dev->mutex);
-		if(bWasSuspended == true)
-		{
-			printk(KERN_INFO"[TSP] === Touch Early Suspend\n");
-			mutex_unlock(&data->input_dev->mutex);
-			goto end;			
-		}
-
 		if (qt602240_read_message(data, &message)) {
 			dev_err(dev, "Failed to read message\n");
-			mutex_unlock(&data->input_dev->mutex);
 			goto end;
 		}
-		mutex_unlock(&data->input_dev->mutex);
 
 		reportid = message.reportid;
 		/* whether reportid is thing of QT602240_TOUCH_MULTI */
@@ -1209,49 +1099,29 @@ static irqreturn_t qt602240_interrupt(int irq, void *dev_id)
 		if (reportid != 0xff)
 			esd_check = 0;
 
-		if (bWasSuspended == true)	{
-			bIsIntensiveRelease = true;
-			qt602240_input_touchevent(data, &message, id);
-			goto end;
-		}
-		
 		if (reportid >= min_reportid && reportid <= max_reportid) {
 			qt602240_input_touchevent(data, &message, id);
 
-#ifdef CONFIG_MACH_MSM8X55_VICTOR
+		#ifdef CONFIG_MACH_MSM8X55_VICTOR
 			/* PRESS or MOVE */
 			if ((message.message[0] & QT602240_DETECT))
 				touch_message_flag = 1;
-#endif
+		#endif
 		}
 		else if (reportid != 0xff) {
 			qt602240_dump_message(dev, &message);
 		}
-		int_value = gpio_get_value(data->pdata->gpio_int);
-		//printk(KERN_INFO"[TSP] === Current int gpio value = %d ===\n", int_value);
-	} while (!int_value);
+	} while (!gpio_get_value(data->pdata->gpio_int));
 
 	esd_check++;
-end:	
-
-	mutex_lock(&data->input_dev->mutex);
-
-	if(bWasSuspended == true)
-	{
-		printk(KERN_INFO"[TSP] === Touch Early Suspend 2\n");
-	}
-	else
-	{
-		if (esd_check >= 5) {
-			printk(KERN_INFO"ESD!! Touch Reset!!!\n");
-			reset_chip(data);
-		}
-
-		if (touch_message_flag && (qt602240_cal_check))
-			qt602240_check_chip_calibration(data);
+end:
+	if (esd_check >= 5) {
+		printk(KERN_INFO"ESD!! Touch Reset!!!\n");
+		reset_chip(data);
 	}
 
-	mutex_unlock(&data->input_dev->mutex);
+	if (touch_message_flag && (qt602240_cal_check))
+		qt602240_check_chip_calibration(data);
 
 	return IRQ_HANDLED;
 }
@@ -2146,15 +2016,15 @@ static int __devexit qt602240_remove(struct i2c_client *client)
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
 static void qt602240_power_down(struct qt602240_data *data)
 {
-	disable_irq_nosync(data->client->irq);
-	msleep(100);
+	disable_irq(data->client->irq);
+
 	gpio_tlmm_config(GPIO_CFG(data->pdata->sda, 1, GPIO_CFG_INPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_16MA), GPIO_CFG_DISABLE);
 	gpio_tlmm_config(GPIO_CFG(data->pdata->scl, 1, GPIO_CFG_INPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_16MA), GPIO_CFG_DISABLE);
 	gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_int, 0, GPIO_CFG_INPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
-	msleep(10);
+
 	data->pdata->power(0);
 }
 
@@ -2169,7 +2039,7 @@ static void qt602240_power_up(struct qt602240_data *data)
 	gpio_tlmm_config(GPIO_CFG(data->pdata->gpio_int, 0, GPIO_CFG_INPUT,
 				GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 
-	msleep(100);
+	msleep(80);
 	enable_irq(data->client->irq);
 	msleep(10);
 }
@@ -2185,12 +2055,12 @@ static int qt602240_suspend(struct i2c_client *client, pm_message_t mesg)
 	struct qt602240_data *data = i2c_get_clientdata(client);
 	struct input_dev *input_dev = data->input_dev;
 
-//	mutex_lock(&input_dev->mutex);
+	mutex_lock(&input_dev->mutex);
 
 	if (input_dev->users)
 		qt602240_stop(data);
 
-//  mutex_unlock(&input_dev->mutex);
+	mutex_unlock(&input_dev->mutex);
 
 	return 0;
 }
@@ -2207,7 +2077,6 @@ static int qt602240_resume(struct i2c_client *client)
 			finger[id].status = 0;
 	}
 
-	msleep(100);
 #ifndef CONFIG_MACH_MSM8X55_VICTOR
 	qt602240_write_object(data, QT602240_GEN_COMMAND,
 			QT602240_COMMAND_RESET, 1);
@@ -2215,21 +2084,12 @@ static int qt602240_resume(struct i2c_client *client)
 	msleep(QT602240_RESET_TIME);
 #endif
 
-//	mutex_lock(&input_dev->mutex);
+	mutex_lock(&input_dev->mutex);
 
-	/* cancle the auto-calibration if auto-calibration was set*/
-	//if(config_check_flag == true){
-		qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_TCHAUTOCAL, 0x00);
-		qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALTHR, 0); 
-		qt602240_write_object(data, QT602240_GEN_ACQUIRE, QT602240_ACQUIRE_ATCHFRCCALRATIO, 0); 
-		first_good = 1;
-		qt_time_diff = 0;
-	//}
-	
 	if (input_dev->users)
 		qt602240_start(data);
 
-//	mutex_unlock(&input_dev->mutex);
+	mutex_unlock(&input_dev->mutex);
 	return 0;
 }
 #else
@@ -2243,13 +2103,6 @@ static void qt602240_early_suspend(struct early_suspend *h)
 {
 	struct qt602240_data *data = container_of(h, struct qt602240_data, early_suspend);
 
-	mutex_lock(&data->input_dev->mutex);
-
-	printk(KERN_INFO"[TSP] qt602240_early_suspend --- \n");
-	bWasSuspended = true;
-	
-	qt602240_input_report_release_flush(data);
-
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
 	if(firmware_status != UPDATE_FIRM_UP)
 #endif
@@ -2260,17 +2113,13 @@ static void qt602240_early_suspend(struct early_suspend *h)
 		qt_timer_state = 0;
 #endif
 	}
-	mutex_unlock(&data->input_dev->mutex);
 }
 
 static void qt602240_late_resume(struct early_suspend *h)
 {
 	struct qt602240_data *data = container_of(h, struct qt602240_data, early_suspend);
 
-	mutex_lock(&data->input_dev->mutex);
-
-	printk(KERN_INFO"[TSP] qt602240_late_resume --- \n");
-	bWasSuspended = false;
+	
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
 	if(firmware_status != UPDATE_FIRM_UP)
 #endif
@@ -2281,7 +2130,6 @@ static void qt602240_late_resume(struct early_suspend *h)
 #endif
 		qt602240_resume(data->client);
 	}
-	mutex_unlock(&data->input_dev->mutex);
 }
 #endif
 

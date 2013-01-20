@@ -10,6 +10,7 @@
  *
  * - Based on mmci.h
  */
+#include <linux/completion.h>
 
 #ifndef _MSM_SDCC_H
 #define _MSM_SDCC_H
@@ -269,7 +270,8 @@ struct msmsdcc_host {
 	unsigned int	mci_irqenable;
 
 	unsigned int	dummy_52_needed;
-	unsigned int	dummy_52_sent;
+	unsigned int	dummy_52_state;
+	struct completion dummy_52_comp;
 
 	unsigned int	sdio_irq_disabled;
 	struct wake_lock	sdio_wlock;
