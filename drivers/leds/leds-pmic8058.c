@@ -26,6 +26,9 @@
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
+#ifdef CONFIG_GENERIC_BLN
+#include <linux/bln.h>
+#endif
 #endif
 
 #define SSBI_REG_ADDR_DRV_KEYPAD	0x48
@@ -288,8 +291,12 @@ static void pmic8058_led_work(struct work_struct *work)
 		break;
 	case PMIC8058_ID_LED_0:
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
-		if(led->brightness == 0 || suspend_check != 1)
+		if( (led->brightness == 0 && !bln_is_ongoing()) || suspend_check != 1 ){
 			led_lc_set(led, led->brightness);
+		//pr_info("%s: brightness changed -> id:%d brightness: %d\n",__FUNCTION__,led->id,led->brightness); //Debug info
+		}/*else{
+			pr_info("%s: brightness not changed -> id:%d\n",__FUNCTION__,led->id); //Debug info
+		}*/
 		break;
 #endif
 	case PMIC8058_ID_LED_1:
@@ -321,6 +328,52 @@ static enum led_brightness pmic8058_led_get(struct led_classdev *led_cdev)
 	}
 	return LED_OFF;
 }
+
+static bool enable_led_notification(void){
+  /* check if its suspended */
+  if (suspend_check == 1){
+	/* Power on leds */
+	struct pmic8058_led_data *led;
+	unsigned long flags;
+
+	led = &led_data[2]; //LEDS of keyboard
+	spin_lock_irqsave(&led->value_lock, flags);
+	led->brightness = 5;
+	mutex_lock(&led->lock);
+	led_lc_set(led, led->brightness);
+	mutex_unlock(&led->lock);
+	spin_unlock_irqrestore(&led->value_lock, flags);	
+
+	pr_info("%s: leds are enabled\n",__FUNCTION__);
+	return true;
+  }
+  else
+    pr_info("%s: cannot set notification led, touchkeys are enabled\n",__FUNCTION__);
+    pr_info("%s: cannot set notification led, suspend_check = 0\n",__FUNCTION__);
+return false;
+}
+
+static void disable_led_notification(void){
+  /* check if its suspended */
+  if (suspend_check == 1){
+	/* Power off leds */
+	struct pmic8058_led_data *led;
+	unsigned long flags;
+
+	led = &led_data[2];
+	spin_lock_irqsave(&led->value_lock, flags);
+	led->brightness = LED_OFF;
+	mutex_lock(&led->lock);
+	led_lc_set(led, led->brightness);
+	mutex_unlock(&led->lock);
+	spin_unlock_irqrestore(&led->value_lock, flags);
+ }
+}
+
+static struct bln_implementation bln = {
+  .enable = enable_led_notification,
+  .disable = disable_led_notification,
+};
 
 static int pmic8058_led_probe(struct platform_device *pdev)
 {
@@ -431,6 +484,10 @@ static int pmic8058_led_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, led_data);
+
+#ifdef CONFIG_GENERIC_BLN
+    register_bln_implementation(&bln);
+#endif
 
 	return 0;
 
