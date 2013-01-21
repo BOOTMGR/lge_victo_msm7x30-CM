@@ -244,6 +244,7 @@ static struct clk_freq_tbl clk_tbl_grp[] = {
 	F_BASIC(184320000, PLL3,  4, NOMINAL),
 	F_BASIC(192000000, PLL1,  4, NOMINAL),
 	F_BASIC(245760000, PLL3,  3, HIGH),
+	F_BASIC(368640000, PLL3,  2, HIGH),
 	/* Sync to AXI. Hence this "rate" is not fixed. */
 	F_RAW(1, SRC_AXI, 0, BIT(14), 0, 0, NOMINAL, NULL),
 	F_END,
