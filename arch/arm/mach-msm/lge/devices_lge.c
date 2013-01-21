@@ -269,10 +269,15 @@ static struct kgsl_platform_data kgsl_pdata = {
 	.high_axi_3d = 192000,
 	.high_axi_2d = 192000,
 #endif
+#define OVERCLOCK_GPU 0
 	.max_grp2d_freq = 0,
 	.min_grp2d_freq = 0,
 	.set_grp2d_async = NULL, /* HW workaround, run Z180 SYNC @ 192 MHZ */
+#if OVERCLOCK_GPU
 	.max_grp3d_freq = 368640000,
+#else
+	.max_grp3d_freq = 245760000,
+#endif
 	.min_grp3d_freq = 192 * 1000*1000,
 	.set_grp3d_async = set_grp3d_async,
 	.imem_clk_name = "imem_clk",
