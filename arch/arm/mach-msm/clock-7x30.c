@@ -25,6 +25,8 @@
 #include <linux/spinlock.h>
 #include <linux/delay.h>
 
+#include <asm/div64.h>
+
 #include <mach/msm_iomap.h>
 #include <mach/clk.h>
 #include <mach/internal_power_rail.h>
