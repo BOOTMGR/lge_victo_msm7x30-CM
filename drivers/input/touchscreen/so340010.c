@@ -365,7 +365,6 @@ if( !sw_is_enabled() || !sw_is_enabled_unlock()){
 #ifndef CONFIG_HAS_EARLYSUSPEND
 static int so340010_i2c_resume(struct i2c_client *i2c_dev)
 {
-#ifdef CONFIG_SWEEP2WAKE
 
 	so340010_i2c_write(
 			resume_code_table[0].val1,
