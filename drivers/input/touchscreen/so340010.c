@@ -142,10 +142,7 @@ struct reg_code_table {
 };
 
 #if defined (CONFIG_LGE_TUNE_610)
-/* 2011-03-22 by xwolf@lge.com
- * skl6100 maps buttons at s1,s2,s3
- * and has another sensor tunning values
- */
+
 static struct reg_code_table initial_code_table[] = {
 	{TSKEY_REG_DUMMY, 	TSKEY_REG_INTER, 		TSKEY_REG_DUMMY, 	0x07},
 	{TSKEY_REG_DUMMY, 	TSKEY_REG_GEN, 			TSKEY_REG_DUMMY, 	0x30},
@@ -324,16 +321,16 @@ static void so340010_delayed_key_work_func(struct work_struct *work)
 	if(last_key == 0 && state == 0)
 		return;
 
-	//printk(KERN_INFO"Do Delayed Work Queue[0x%x]\n", state);
+	//printk(KERN_INFO"Do Delayed Work Queue[0x%x]\n", state);	
 #ifdef CONFIG_SWEEP2WAKE
-	if(suspended == false){
-	sw_lock(state);
-	so340010_report_event(state);
-   }else{
-	sw_unlock(state);
-}
+		if(suspended == false){
+			sw_lock(state);			
+			so340010_report_event(state);
+		}else{
+			sw_unlock(state);
+		}
 #else
-	so340010_report_event(state);
+		so340010_report_event(state);
 #endif
 	last_key	= state;
 }
@@ -341,7 +338,7 @@ static void so340010_delayed_key_work_func(struct work_struct *work)
 static int so340010_i2c_suspend(struct i2c_client *i2c_dev, pm_message_t state)
 {
 #ifdef CONFIG_SWEEP2WAKE
-if( !sw_is_enabled() || !sw_is_enabled_unlock()){
+	if( !sw_is_enabled() || !sw_is_enabled_unlock()){
 #endif
 	struct so340010_device *pdev = i2c_get_clientdata(i2c_dev);
 
@@ -356,9 +353,8 @@ if( !sw_is_enabled() || !sw_is_enabled_unlock()){
 			suspend_code_table[0].val3,
 			suspend_code_table[0].val4);
 #ifdef CONFIG_SWEEP2WAKE
-  }
+	}
 #endif
-
 	return 0;
 }
 
@@ -380,7 +376,7 @@ static int so340010_i2c_resume(struct i2c_client *i2c_dev)
 static void so340010_power_down(void)
 {
 #ifdef CONFIG_SWEEP2WAKE
-  if( !sw_is_enabled() || !sw_is_enabled_unlock()){
+	if( !sw_is_enabled() || !sw_is_enabled_unlock()){
 #endif
 	gpio_tlmm_config(GPIO_CFG(so340010_pdata->sda, 0, GPIO_CFG_INPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
@@ -391,12 +387,13 @@ static void so340010_power_down(void)
 
 	so340010_pdata->power(0);
 #ifdef CONFIG_SWEEP2WAKE
-  }
+	}
 #endif
 }
 
 static void so340010_power_up(void)
 {
+
 	so340010_pdata->power(1);
 
 	gpio_tlmm_config(GPIO_CFG(so340010_pdata->scl, 0, GPIO_CFG_OUTPUT,
@@ -407,22 +404,23 @@ static void so340010_power_up(void)
 				GPIO_CFG_PULL_UP, GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 
 	msleep(50);
+
 }
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void so340010_early_suspend(struct early_suspend *h)
 {
-struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+	struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
 #ifdef CONFIG_SWEEP2WAKE
-  if(sw_is_enabled() && sw_is_enabled_unlock()){
-	mutex_lock(&sw_suspended_mutex);
-	suspended = true;
-	enable_irq_wake(pdev->client->irq);
-	enable_irq_wake(pdev->gpio_irq);
-	enable_irq_wake(pdev->irq);
-	mutex_unlock(&sw_suspended_mutex);
-  }else{
+	if(sw_is_enabled() && sw_is_enabled_unlock()){	
+		mutex_lock(&sw_suspended_mutex);		
+		suspended = true;
+		enable_irq_wake(pdev->client->irq);
+		enable_irq_wake(pdev->gpio_irq);
+		enable_irq_wake(pdev->irq);	
+		mutex_unlock(&sw_suspended_mutex);
+	}else{
 #endif
 
 	disable_irq(pdev->client->irq);
@@ -430,24 +428,23 @@ struct so340010_device *pdev = container_of(h, struct so340010_device, earlysusp
 	so340010_i2c_suspend(pdev->client, PMSG_SUSPEND);
 	so340010_power_down();
 #ifdef CONFIG_SWEEP2WAKE
-}
+	}
 #endif
-
 	return;
 }
 
 static void so340010_late_resume(struct early_suspend *h)
 {
-struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+	struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
 #ifdef CONFIG_SWEEP2WAKE
-  if(sw_is_enabled() && sw_is_enabled_unlock()){
-	mutex_lock(&sw_suspended_mutex);
-	suspended = false;
-	disable_irq_wake(pdev->client->irq);
-	disable_irq_wake(pdev->gpio_irq);
-	disable_irq_wake(pdev->irq);
-	mutex_lock(&sw_suspended_mutex);
-  }else{
+	if(sw_is_enabled() && sw_is_enabled_unlock()){	
+		mutex_lock(&sw_suspended_mutex);	
+		suspended = false;
+		disable_irq_wake(pdev->client->irq);
+		disable_irq_wake(pdev->gpio_irq);
+		disable_irq_wake(pdev->irq);		
+		mutex_unlock(&sw_suspended_mutex);
+	}else{
 #endif
 	int ret = 0;
 
@@ -460,7 +457,7 @@ struct so340010_device *pdev = container_of(h, struct so340010_device, earlysusp
 
 	enable_irq(pdev->client->irq);
 #ifdef CONFIG_SWEEP2WAKE
-  }
+	}
 #endif
 	return;
 }

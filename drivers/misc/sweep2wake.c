@@ -18,8 +18,8 @@
 #include <linux/delay.h>
 
 #define TIMER_MAX 2000 // 2 sec
-static DEFINE_MUTEX(sw_power_mutex);
 
+static DEFINE_MUTEX(sw_power_mutex);
 bool sw_enabled = true; /* is sweep2wake enabled */
 bool sw_suspended = false; /* is system suspended */
 bool sw_unlockenable = true; /* unlock with sweep2wake left->right */
@@ -61,7 +61,7 @@ void setInputDev (struct input_dev *dev){
 	input_dev=dev;
 }
 
-
+//is enabled?
 bool sw_is_enabled (){
 	return sw_enabled;
 }
@@ -80,11 +80,10 @@ static ssize_t sw_status_read(struct device *dev,
 
 static ssize_t sw_status_write(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size){
- if(sw_suspended == true){
-	pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
-	return size;
- }
-
+	if(sw_suspended == true){
+		pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
+		return size;
+	}
 	unsigned int data;
 	if(sscanf(buf, "%u\n", &data) == 1) {
 		if (data == 1) {
@@ -112,11 +111,10 @@ static ssize_t sw_unlock_status_read(struct device *dev,
 
 static ssize_t sw_unlock_status_write(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size){
-  if(sw_suspended == true){
-	pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
-	return size;
-  }
-	
+	if(sw_suspended == true){
+		pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
+		return size;
+	}
 	unsigned int data;
 	if(sscanf(buf, "%u\n", &data) == 1) {
 		if (data == 1) {
@@ -144,11 +142,10 @@ static ssize_t sw_lock_status_read(struct device *dev,
 
 static ssize_t sw_lock_status_write(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size){	
-  if(sw_suspended == true){
-	pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
-	return size;
-  }
-	
+	if(sw_suspended == true){
+		pr_info("%s: sweep2wake cant be changed with phone suspended\n", __FUNCTION__);
+		return size;
+	}
 	unsigned int data;
 	if(sscanf(buf, "%u\n", &data) == 1) {
 		if (data == 1) {
@@ -198,7 +195,6 @@ void timer_callback(unsigned long data)
 {
 	reset_count();
 	pr_info("%s: sweep2wake reset\n", __FUNCTION__);
-	
 }
 
 //push the power button
@@ -231,7 +227,7 @@ void sw_unlock(u16 state){ //left-right 0x100->0x0->0x200->0x0->0x400
 					if(state == 0x100){
 						push_pwr();
 						pr_info("%s: sweep2wake unlock\n", __FUNCTION__);
-						
+
 					}
 					if(count[3] != true){
 						count[3] = true;
