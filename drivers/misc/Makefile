@@ -59,6 +59,7 @@ obj-y += android_vibrator.o
 endif
 endif
 obj-$(CONFIG_SWEEP2WAKE) += sweep2wake.o
+obj-$(CONFIG_FSYNC_CONTROL)  += fsync_control.o
 obj-$(CONFIG_LGE_SUPPORT_AT_CMD) += lge_ats_at_class.o
 obj-$(CONFIG_LGE_SUPPORT_AT_CMD) += lge_ats_at.o
 obj-$(CONFIG_PMIC8058_BATTALARM) += pmic8058-batt-alarm.o
