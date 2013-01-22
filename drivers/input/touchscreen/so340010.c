@@ -32,7 +32,9 @@
 #include <mach/vreg.h>
 #include <mach/board_lge.h>
 #include <linux/jiffies.h>
-
+#ifdef CONFIG_SWEEP2WAKE
+#include <linux/sweep2wake.h>
+#endif
 
 #define TSKEY_REG_INTER			(0x00)
 #define TSKEY_REG_GEN			(0x01)
@@ -60,6 +62,11 @@
 #define PRESS 	1
 #define RELEASE 0
 #define KEY_DELAYED_SEC		40
+
+#ifdef CONFIG_SWEEP2WAKE
+bool suspended = false;
+static DEFINE_MUTEX(sw_suspended_mutex);
+#endif
 
 struct class *touch_key_class;
 EXPORT_SYMBOL(touch_key_class);
@@ -318,13 +325,24 @@ static void so340010_delayed_key_work_func(struct work_struct *work)
 		return;
 
 	//printk(KERN_INFO"Do Delayed Work Queue[0x%x]\n", state);
-
+#ifdef CONFIG_SWEEP2WAKE
+	if(suspended == false){
+	sw_lock(state);
 	so340010_report_event(state);
+   }else{
+	sw_unlock(state);
+}
+#else
+	so340010_report_event(state);
+#endif
 	last_key	= state;
 }
 
 static int so340010_i2c_suspend(struct i2c_client *i2c_dev, pm_message_t state)
 {
+#ifdef CONFIG_SWEEP2WAKE
+if( !sw_is_enabled() || !sw_is_enabled_unlock()){
+#endif
 	struct so340010_device *pdev = i2c_get_clientdata(i2c_dev);
 
 	cancel_work_sync(&pdev->key_work);
@@ -337,6 +355,9 @@ static int so340010_i2c_suspend(struct i2c_client *i2c_dev, pm_message_t state)
 			suspend_code_table[0].val2,
 			suspend_code_table[0].val3,
 			suspend_code_table[0].val4);
+#ifdef CONFIG_SWEEP2WAKE
+  }
+#endif
 
 	return 0;
 }
@@ -344,6 +365,8 @@ static int so340010_i2c_suspend(struct i2c_client *i2c_dev, pm_message_t state)
 #ifndef CONFIG_HAS_EARLYSUSPEND
 static int so340010_i2c_resume(struct i2c_client *i2c_dev)
 {
+#ifdef CONFIG_SWEEP2WAKE
+
 	so340010_i2c_write(
 			resume_code_table[0].val1,
 			resume_code_table[0].val2,
@@ -357,6 +380,9 @@ static int so340010_i2c_resume(struct i2c_client *i2c_dev)
 #ifdef CONFIG_MACH_MSM8X55_VICTOR
 static void so340010_power_down(void)
 {
+#ifdef CONFIG_SWEEP2WAKE
+  if( !sw_is_enabled() || !sw_is_enabled_unlock()){
+#endif
 	gpio_tlmm_config(GPIO_CFG(so340010_pdata->sda, 0, GPIO_CFG_INPUT,
 				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
 	gpio_tlmm_config(GPIO_CFG(so340010_pdata->scl, 0, GPIO_CFG_INPUT,
@@ -365,6 +391,9 @@ static void so340010_power_down(void)
 				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
 
 	so340010_pdata->power(0);
+#ifdef CONFIG_SWEEP2WAKE
+  }
+#endif
 }
 
 static void so340010_power_up(void)
@@ -385,19 +414,42 @@ static void so340010_power_up(void)
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void so340010_early_suspend(struct early_suspend *h)
 {
-	struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+#ifdef CONFIG_SWEEP2WAKE
+  if(sw_is_enabled() && sw_is_enabled_unlock()){
+	mutex_lock(&sw_suspended_mutex);
+	suspended = true;
+	enable_irq_wake(pdev->client->irq);
+	enable_irq_wake(pdev->gpio_irq);
+	enable_irq_wake(pdev->irq);
+	mutex_unlock(&sw_suspended_mutex);
+  }else{
+#endif
 
 	disable_irq(pdev->client->irq);
 
 	so340010_i2c_suspend(pdev->client, PMSG_SUSPEND);
 	so340010_power_down();
+#ifdef CONFIG_SWEEP2WAKE
+}
+#endif
 
 	return;
 }
 
 static void so340010_late_resume(struct early_suspend *h)
 {
-	struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+struct so340010_device *pdev = container_of(h, struct so340010_device, earlysuspend);
+#ifdef CONFIG_SWEEP2WAKE
+  if(sw_is_enabled() && sw_is_enabled_unlock()){
+	mutex_lock(&sw_suspended_mutex);
+	suspended = false;
+	disable_irq_wake(pdev->client->irq);
+	disable_irq_wake(pdev->gpio_irq);
+	disable_irq_wake(pdev->irq);
+	mutex_lock(&sw_suspended_mutex);
+  }else{
+#endif
 	int ret = 0;
 
 	so340010_power_up();
@@ -408,7 +460,9 @@ static void so340010_late_resume(struct early_suspend *h)
 		printk(KERN_INFO"%s: failed to init\n", __func__);
 
 	enable_irq(pdev->client->irq);
-
+#ifdef CONFIG_SWEEP2WAKE
+  }
+#endif
 	return;
 }
 #endif

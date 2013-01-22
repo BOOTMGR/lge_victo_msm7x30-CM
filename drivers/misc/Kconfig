@@ -518,6 +518,12 @@ config PMIC8058_MISC
 	  Qualcomm PM8058 chip.  Examples include: signalling when the 32kHz
 	  oscillator malfunctions.
 
+config SWEEP2WAKE
+	bool "Support for sweep2wake"
+	default n
+	help
+	  Say Y here to enable sweep2wake
+
 config ANDROID_VIBRATOR
 	bool "Android vibrator support"
 	depends on ANDROID_TIMED_OUTPUT
