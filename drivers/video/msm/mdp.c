@@ -1194,7 +1194,7 @@ static int mdp_probe(struct platform_device *pdev)
 #else
 	unsigned long flag;
 #endif
-#if defined(CONFIG_FB_MSM_MIPI_DSI) && defined(CONFIG_FB_MSM_MDP40)
+#ifdef CONFIG_FB_MSM_MDP40
 	struct mipi_panel_info *mipi;
 #endif
 
