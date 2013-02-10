@@ -31,7 +31,7 @@
 #include "mt9p017.h"
 
 // sungmin.woo@lge.com for fast af modification start //
-//#define 		USE_LG_fast_af
+#define USE_LG_fast_af
 // sungmin.woo@lge.com for fast af modification end //
 
 #define MT9P017_REG_MODEL_ID 		 0x0000
