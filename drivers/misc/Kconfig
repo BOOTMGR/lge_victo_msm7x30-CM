@@ -546,6 +546,12 @@ config FSYNC_CONTROL
 	help
 	  Say Y here to enable FSync Control
 
+config FRANDOM
+	bool "Frandom Support"
+	default y
+	help
+		Say Y here to enable Frandom Module generation
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
