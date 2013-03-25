@@ -22,7 +22,7 @@
  * other than the GPL, without Broadcom's express prior written consent.
  *
  * $Id: wl_iw.h,v 1.15.80.6 2010/12/23 01:13:23 Exp $
- */
+ */  
 
 #ifndef _wl_iw_h_
 #define _wl_iw_h_
@@ -66,14 +66,14 @@ typedef struct wl_iw_extra_params {
 /* ============================================== */
 /* Defines from wlc_pub.h */
 #define	WL_IW_RSSI_MINVAL		-200	/* Low value, e.g. for forcing roam */
-#define	WL_IW_RSSI_NO_SIGNAL	-91	/* NDIS RSSI link quality cutoffs */
-#define	WL_IW_RSSI_VERY_LOW	-80	/* Very low quality cutoffs */
-#define	WL_IW_RSSI_LOW		-70	/* Low quality cutoffs */
-#define	WL_IW_RSSI_GOOD		-68	/* Good quality cutoffs */
-#define	WL_IW_RSSI_VERY_GOOD	-58	/* Very good quality cutoffs */
-#define	WL_IW_RSSI_EXCELLENT	-57	/* Excellent quality cutoffs */
+#define	WL_IW_RSSI_NO_SIGNAL	-98	/* NDIS RSSI link quality cutoffs */
+#define	WL_IW_RSSI_VERY_LOW	-87	/* Very low quality cutoffs */
+#define	WL_IW_RSSI_LOW		-77	/* Low quality cutoffs */
+#define	WL_IW_RSSI_GOOD		-75	/* Good quality cutoffs */
+#define	WL_IW_RSSI_VERY_GOOD	-65	/* Very good quality cutoffs */
+#define	WL_IW_RSSI_EXCELLENT	-64	/* Excellent quality cutoffs */
 #define	WL_IW_RSSI_INVALID	 0	/* invalid RSSI value */
-#define MAX_WX_STRING 80
+#define MAX_WX_STRING 87
 #define isprint(c) bcm_isprint(c)
 #define WL_IW_SET_ACTIVE_SCAN	(SIOCIWFIRSTPRIV+1)
 #define WL_IW_GET_RSSI			(SIOCIWFIRSTPRIV+3)
@@ -148,7 +148,6 @@ typedef struct wl_iw_ss_cache {
 } wl_iw_ss_cache_t;
 #endif /* CONFIG_LGE_BCM432X_PATCH */
 
-
 typedef struct wl_iw_ss_cache_ctrl {
 	wl_iw_ss_cache_t *m_cache_head;	/* specific scan cache head */
 	int m_link_down;		/* link down indicator flag */
@@ -177,6 +176,12 @@ struct ap_profile {
 	uint32	channel; /* 0 for auto */
 	uint32	preamble;
 	uint32	max_scb;	/* maxmium number of station */
+
+// LGE_UPDATE_S bluetooth.kang@lge.com	 [SSID HIDDEN] 2010.5.10
+	uint32  closednet;  
+	char country_code[WLC_CNTRY_BUF_SZ];
+// LGE_UPDATE_E
+	
 };
 
 
